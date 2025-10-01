@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, Utensils, Zap, Clock } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { mockDb } from '../lib/mockDb';
 
 interface DailyLog {
   id: string;
@@ -46,31 +46,11 @@ export const DailyLogHistory: React.FC = () => {
 
     setLoading(true);
     try {
-      // Get daily log
-      const { data: logData } = await supabase
-        .from('daily_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('date', selectedDate)
-        .maybeSingle();
-
+      const logData = mockDb.findDailyLog(user.id, selectedDate);
       setDailyLog(logData);
-
       if (logData) {
-        // Get food entries
-        const { data: foodData } = await supabase
-          .from('food_entries')
-          .select('*')
-          .eq('daily_log_id', logData.id)
-          .order('created_at', { ascending: true });
-
-        // Get activity entries
-        const { data: activityData } = await supabase
-          .from('activity_entries')
-          .select('*')
-          .eq('daily_log_id', logData.id)
-          .order('created_at', { ascending: true });
-
+        const foodData = mockDb.listFoodEntriesByLog(logData.id);
+        const activityData = mockDb.listActivityEntriesByLog(logData.id);
         setFoodEntries(foodData || []);
         setActivityEntries(activityData || []);
       } else {

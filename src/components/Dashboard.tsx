@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Target, TrendingUp, Activity, Plus } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { mockDb } from '../lib/mockDb';
 
 interface DashboardStats {
   caloriesConsumed: number;
@@ -36,21 +36,8 @@ export const Dashboard: React.FC<Props> = ({ onAddFood, onAddActivity }) => {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-
-      // Get user profile for daily goal
-      const { data: profile } = await supabase
-        .from('users_profile')
-        .select('daily_calorie_goal')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      // Get today's daily log
-      const { data: dailyLog } = await supabase
-        .from('daily_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('date', today)
-        .maybeSingle();
+      const profile = mockDb.getProfile(user.id);
+      const dailyLog = mockDb.findDailyLog(user.id, today);
 
       const dailyGoal = profile?.daily_calorie_goal || 2000;
       const consumed = dailyLog?.total_calories_consumed || 0;

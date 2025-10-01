@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Utensils, Plus, Trash2, CreditCard as Edit } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { mockDb } from '../lib/mockDb';
 
 interface Food {
   id: string;
@@ -40,13 +40,7 @@ export const FoodLibrary: React.FC = () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('foods')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = mockDb.listFoods(user.id);
       setFoods(data || []);
     } catch (error) {
       console.error('Error loading foods:', error);
@@ -61,7 +55,6 @@ export const FoodLibrary: React.FC = () => {
 
     try {
       const foodData = {
-        user_id: user.id,
         name: formData.name,
         calories_per_serving: parseFloat(formData.calories),
         serving_size: formData.serving,
@@ -69,16 +62,9 @@ export const FoodLibrary: React.FC = () => {
       };
 
       if (editingFood) {
-        const { error } = await supabase
-          .from('foods')
-          .update(foodData)
-          .eq('id', editingFood.id);
-        if (error) throw error;
+        mockDb.updateFood(editingFood.id, foodData);
       } else {
-        const { error } = await supabase
-          .from('foods')
-          .insert(foodData);
-        if (error) throw error;
+        mockDb.addFood(user.id, foodData);
       }
 
       // Reset form
@@ -113,12 +99,7 @@ export const FoodLibrary: React.FC = () => {
     if (!confirm('Are you sure you want to delete this food?')) return;
 
     try {
-      const { error } = await supabase
-        .from('foods')
-        .delete()
-        .eq('id', foodId);
-
-      if (error) throw error;
+      mockDb.deleteFood(foodId);
       loadFoods();
     } catch (error) {
       console.error('Error deleting food:', error);

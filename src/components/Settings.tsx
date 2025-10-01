@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Target, LogOut, User } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { mockDb } from '../lib/mockDb';
 
 export const Settings: React.FC = () => {
   const { user, signOut } = useAuth();
@@ -19,46 +19,8 @@ export const Settings: React.FC = () => {
     if (!user) return;
 
     try {
-      let { data: profile, error } = await supabase
-        .from('users_profile')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (error) {
-        // If maybeSingle() failed, it might be due to multiple profiles
-        // Let's fetch all profiles and use the first one
-        const { data: profiles, error: fetchError } = await supabase
-          .from('users_profile')
-          .select('*')
-          .eq('user_id', user.id);
-
-        if (fetchError) throw fetchError;
-        
-        if (profiles && profiles.length > 0) {
-          profile = profiles[0];
-          console.warn('Multiple user profiles found, using the first one');
-        }
-      }
-
-      if (!profile) {
-        // Create profile if it doesn't exist
-        const { data: newProfile, error: createError } = await supabase
-          .from('users_profile')
-          .insert({
-            user_id: user.id,
-            daily_calorie_goal: 2000,
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        profile = newProfile;
-      }
-
-      if (profile) {
-        setDailyGoal(profile.daily_calorie_goal.toString());
-      }
+      const profile = mockDb.getProfile(user.id) ?? mockDb.upsertProfile(user.id, 2000);
+      setDailyGoal(profile.daily_calorie_goal.toString());
     } catch (error) {
       console.error('Error loading user profile:', error);
     }
@@ -71,15 +33,7 @@ export const Settings: React.FC = () => {
 
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('users_profile')
-        .upsert({
-          user_id: user.id,
-          daily_calorie_goal: parseInt(dailyGoal),
-          updated_at: new Date().toISOString(),
-        });
-
-      if (error) throw error;
+      mockDb.upsertProfile(user.id, parseInt(dailyGoal));
     } catch (error) {
       console.error('Error saving profile:', error);
     }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Utensils, ArrowLeft } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { mockDb } from '../lib/mockDb';
 
 interface Food {
   id: string;
@@ -45,20 +45,12 @@ export const FoodLogger: React.FC<Props> = ({ onBack }) => {
 
   const loadFoods = async () => {
     if (!user) return;
-
     try {
-      const { data, error } = await supabase
-        .from('foods')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = mockDb.listFoods(user.id);
       setFoods(data || []);
     } catch (error) {
       console.error('Error loading foods:', error);
     }
-
     setLoading(false);
   };
 
@@ -67,17 +59,12 @@ export const FoodLogger: React.FC<Props> = ({ onBack }) => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from('foods')
-        .insert({
-          user_id: user.id,
-          name: newFoodName,
-          calories_per_serving: parseFloat(newFoodCalories),
-          serving_size: newFoodServing,
-          category: newFoodCategory,
-        });
-
-      if (error) throw error;
+      mockDb.addFood(user.id, {
+        name: newFoodName,
+        calories_per_serving: parseFloat(newFoodCalories),
+        serving_size: newFoodServing,
+        category: newFoodCategory,
+      });
 
       // Reset form
       setNewFoodName('');
@@ -99,59 +86,14 @@ export const FoodLogger: React.FC<Props> = ({ onBack }) => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const totalCalories = selectedFood.calories_per_serving * parseFloat(portions);
-
-      // Get or create daily log
-      let { data: dailyLog, error: logError } = await supabase
-        .from('daily_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('date', today)
-        .single();
-
-      if (logError && logError.code === 'PGRST116') {
-        // Create new daily log
-        const { data: newLog, error: createError } = await supabase
-          .from('daily_logs')
-          .insert({
-            user_id: user.id,
-            date: today,
-            total_calories_consumed: 0,
-            total_calories_burned: 0,
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        dailyLog = newLog;
-      } else if (logError) {
-        throw logError;
-      }
-
-      // Add food entry
-      const { error: entryError } = await supabase
-        .from('food_entries')
-        .insert({
-          user_id: user.id,
-          daily_log_id: dailyLog.id,
-          food_id: selectedFood.id,
-          food_name: selectedFood.name,
-          calories: totalCalories,
-          portions: parseFloat(portions),
-          meal_type: mealType,
-        });
-
-      if (entryError) throw entryError;
-
-      // Update daily log totals
-      const { error: updateError } = await supabase
-        .from('daily_logs')
-        .update({
-          total_calories_consumed: dailyLog.total_calories_consumed + totalCalories,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', dailyLog.id);
-
-      if (updateError) throw updateError;
+      const dailyLog = mockDb.getOrCreateDailyLog(user.id, today);
+      mockDb.addFoodEntry(user.id, dailyLog.id, {
+        food_id: selectedFood.id,
+        food_name: selectedFood.name,
+        calories: totalCalories,
+        portions: parseFloat(portions),
+        meal_type: mealType,
+      });
 
       // Reset and go back
       setSelectedFood(null);

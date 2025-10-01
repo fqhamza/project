@@ -1,51 +1,45 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { User } from '@supabase/supabase-js';
+import { mockDb, MockUser } from '../lib/mockDb';
 
 export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<MockUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-
-    getInitialSession();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    const raw = localStorage.getItem('mock-auth-email');
+    if (raw) {
+      const ensured = mockDb.ensureUser(raw);
+      setUser(ensured);
+    }
+    setLoading(false);
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+  const signIn = async (email: string, _password: string) => {
+    try {
+      const ensured = mockDb.ensureUser(email);
+      localStorage.setItem('mock-auth-email', email);
+      setUser(ensured);
+      return { error: null as unknown as Error | null };
+    } catch (e) {
+      return { error: e as Error };
+    }
   };
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    return { error };
+  const signUp = async (email: string, _password: string) => {
+    try {
+      const ensured = mockDb.ensureUser(email);
+      localStorage.setItem('mock-auth-email', email);
+      setUser(ensured);
+      return { error: null as unknown as Error | null };
+    } catch (e) {
+      return { error: e as Error };
+    }
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    return { error };
+    localStorage.removeItem('mock-auth-email');
+    setUser(null);
+    return { error: null as unknown as Error | null };
   };
 
   return {

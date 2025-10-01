@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Zap, ArrowLeft } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { mockDb } from '../lib/mockDb';
 
 interface Activity {
   id: string;
@@ -38,13 +38,7 @@ export const ActivityLogger: React.FC<Props> = ({ onBack }) => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('activities')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = mockDb.listActivities(user.id);
       setActivities(data || []);
     } catch (error) {
       console.error('Error loading activities:', error);
@@ -58,15 +52,10 @@ export const ActivityLogger: React.FC<Props> = ({ onBack }) => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from('activities')
-        .insert({
-          user_id: user.id,
-          name: newActivityName,
-          calories_per_minute: parseFloat(newActivityCalories),
-        });
-
-      if (error) throw error;
+      mockDb.addActivity(user.id, {
+        name: newActivityName,
+        calories_per_minute: parseFloat(newActivityCalories),
+      });
 
       // Reset form
       setNewActivityName('');
@@ -86,58 +75,13 @@ export const ActivityLogger: React.FC<Props> = ({ onBack }) => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const totalCaloriesBurned = selectedActivity.calories_per_minute * parseFloat(duration);
-
-      // Get or create daily log
-      let { data: dailyLog, error: logError } = await supabase
-        .from('daily_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('date', today)
-        .single();
-
-      if (logError && logError.code === 'PGRST116') {
-        // Create new daily log
-        const { data: newLog, error: createError } = await supabase
-          .from('daily_logs')
-          .insert({
-            user_id: user.id,
-            date: today,
-            total_calories_consumed: 0,
-            total_calories_burned: 0,
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        dailyLog = newLog;
-      } else if (logError) {
-        throw logError;
-      }
-
-      // Add activity entry
-      const { error: entryError } = await supabase
-        .from('activity_entries')
-        .insert({
-          user_id: user.id,
-          daily_log_id: dailyLog.id,
-          activity_id: selectedActivity.id,
-          activity_name: selectedActivity.name,
-          calories_burned: totalCaloriesBurned,
-          duration_minutes: parseFloat(duration),
-        });
-
-      if (entryError) throw entryError;
-
-      // Update daily log totals
-      const { error: updateError } = await supabase
-        .from('daily_logs')
-        .update({
-          total_calories_burned: dailyLog.total_calories_burned + totalCaloriesBurned,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', dailyLog.id);
-
-      if (updateError) throw updateError;
+      const dailyLog = mockDb.getOrCreateDailyLog(user.id, today);
+      mockDb.addActivityEntry(user.id, dailyLog.id, {
+        activity_id: selectedActivity.id,
+        activity_name: selectedActivity.name,
+        calories_burned: totalCaloriesBurned,
+        duration_minutes: parseFloat(duration),
+      });
 
       // Reset and go back
       setSelectedActivity(null);
